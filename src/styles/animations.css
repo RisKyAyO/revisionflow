@@ -1,0 +1,134 @@
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes popIn {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes progressFill {
+  from { width: 0%; }
+  to { width: var(--target-width); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scaleY(1);
+    max-height: 100px;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px) scaleY(0);
+    max-height: 0;
+  }
+}
+
+@keyframes slideInBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes checkPop {
+  0% { transform: scale(0) rotate(-10deg); }
+  60% { transform: scale(1.3) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-slide {
+  animation: fadeSlideIn 0.4s ease both;
+}
+
+.animate-slide-right {
+  animation: slideInRight 0.3s ease both;
+}
+
+.animate-pop {
+  animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-urgent {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.animate-slide-bottom {
+  animation: slideInBottom 0.3s ease both;
+}
+
+.animate-count {
+  animation: countUp 0.4s ease both;
+}
+
+.item-stagger:nth-child(1) { animation-delay: 0ms; }
+.item-stagger:nth-child(2) { animation-delay: 60ms; }
+.item-stagger:nth-child(3) { animation-delay: 120ms; }
+.item-stagger:nth-child(4) { animation-delay: 180ms; }
+.item-stagger:nth-child(5) { animation-delay: 240ms; }
+.item-stagger:nth-child(6) { animation-delay: 300ms; }
+.item-stagger:nth-child(7) { animation-delay: 360ms; }
+.item-stagger:nth-child(8) { animation-delay: 420ms; }
+
+.page-enter {
+  animation: fadeSlideIn 0.35s ease both;
+}
