@@ -10,7 +10,7 @@ const NAVIGATION = [
   { icon: <Settings size={18} />, label: 'Paramètres', chemin: '/parametres' },
 ]
 
-export default function Sidebar({ sessionsSemaine, sessionsTerminees }) {
+export default function Sidebar({ sessionsSemaine, sessionsTerminees, coursSemaine }) {
   const location = useLocation()
   const pourcent = sessionsSemaine > 0 ? Math.round((sessionsTerminees / sessionsSemaine) * 100) : 0
 
@@ -134,6 +134,11 @@ export default function Sidebar({ sessionsSemaine, sessionsTerminees }) {
           </span>
         </div>
         <p className="caption mt-1">séances complétées</p>
+        {coursSemaine > 0 && (
+          <p className="caption mt-1" style={{ color: 'var(--text-muted)' }}>
+            {coursSemaine} cours / TD / TP
+          </p>
+        )}
       </div>
     </aside>
   )

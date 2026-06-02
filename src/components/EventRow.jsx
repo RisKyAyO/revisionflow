@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Trash2 } from 'lucide-react'
+import { estimerNbSessions } from '../utils/scheduler'
 
 const TYPES_CONFIG = {
   examen: { label: 'Examen', couleur: '#FF6584', bg: 'rgba(255,101,132,0.12)' },
@@ -31,7 +32,7 @@ export default function EventRow({ evenement, matieres, onChange, onSupprimer, o
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '28px 1fr 90px 120px 170px 100px 28px',
+        gridTemplateColumns: '28px 1fr 90px 120px 160px 100px 90px 28px',
         gap: 10,
         alignItems: 'center',
         padding: '10px 14px',
@@ -166,6 +167,32 @@ export default function EventRow({ evenement, matieres, onChange, onSupprimer, o
         <option value="cours">Cours</option>
         <option value="autre">Autre</option>
       </select>
+
+      <div style={{ textAlign: 'center' }}>
+        {evenement.type === 'cours' ? (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>📅 Planning</span>
+        ) : (
+          (() => {
+            const nb = estimerNbSessions(evenement, matieres)
+            const emoji = evenement.type === 'examen' ? '🔄' : evenement.type === 'devoir' ? '✏️' : '📌'
+            return (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '2px 7px',
+                  borderRadius: 20,
+                  background: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {emoji} {nb}
+              </span>
+            )
+          })()
+        )}
+      </div>
 
       <button
         onClick={() => onSupprimer && onSupprimer(evenement.id)}

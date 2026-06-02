@@ -62,6 +62,16 @@ export function saveDevoirs(devoirs) {
   sauvegarder(CLE_DEVOIRS, devoirs)
 }
 
+const CLE_COURS = 'rf_cours'
+
+export function getCours() {
+  return lire(CLE_COURS) || []
+}
+
+export function saveCours(cours) {
+  sauvegarder(CLE_COURS, cours)
+}
+
 export function getDisponibilites() {
   const defaut = {
     lundi: { actif: true, debut: '09:00', fin: '18:00' },

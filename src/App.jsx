@@ -10,7 +10,7 @@ import Import from './pages/Import'
 import Matieres from './pages/Matieres'
 import Statistiques from './pages/Statistiques'
 import Parametres from './pages/Parametres'
-import { initialiserDemoData, getSessions } from './utils/storage'
+import { initialiserDemoData, getSessions, getCours } from './utils/storage'
 import { startOfWeek, addDays, isSameDay, parseISO } from 'date-fns'
 import './styles/global.css'
 import './styles/animations.css'
@@ -18,9 +18,11 @@ import './styles/animations.css'
 function Layout() {
   const location = useLocation()
   const [sessions, setSessions] = useState([])
+  const [cours, setCours] = useState([])
 
   useEffect(() => {
     setSessions(getSessions())
+    setCours(getCours())
   }, [location.pathname])
 
   const debutSemaine = startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -34,10 +36,14 @@ function Layout() {
     s.terminee && jours7.some((j) => isSameDay(parseISO(s.date), j))
   ).length
 
+  const coursSemaine = cours.filter((c) =>
+    jours7.some((j) => isSameDay(parseISO(c.debut), j))
+  ).length
+
   return (
     <div className="app-layout">
       <div className="d-none d-md-block">
-        <Sidebar sessionsSemaine={sessionsSemaine} sessionsTerminees={sessionsTerminees} />
+        <Sidebar sessionsSemaine={sessionsSemaine} sessionsTerminees={sessionsTerminees} coursSemaine={coursSemaine} />
       </div>
       <div className="main-content">
         <Topbar pathname={location.pathname} />

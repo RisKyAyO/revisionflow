@@ -34,6 +34,21 @@ export default function SubjectCard({ matiere, examen, sessions, onSupprimer, on
           textAlign: 'center',
         }}
       >
+        {matiere.fromImport && (
+          <div style={{ marginBottom: 6 }}>
+            <span style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 20,
+              background: 'rgba(108,99,255,0.15)',
+              color: 'var(--primary)',
+              letterSpacing: '0.3px',
+            }}>
+              📥 Importé
+            </span>
+          </div>
+        )}
         <div style={{ fontSize: 48, marginBottom: 8 }}>{matiere.emoji}</div>
         <h3 className="card-title">{matiere.nom}</h3>
         <div className="d-flex align-items-center justify-content-center gap-2 mt-1">

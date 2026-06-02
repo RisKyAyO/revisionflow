@@ -4,14 +4,15 @@ import { ArrowRight, FileCheck, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import ImportDropzone from '../components/ImportDropzone'
 import EventReviewTable from '../components/EventReviewTable'
-import { parseICSFile, associerMatieres } from '../utils/icsParser'
+import { parseICSFile, processEvents, extraireCoursDepuisEvenements } from '../utils/icsParser'
 import {
   getMatieres, saveMatieres, getExamens, saveExamens,
   getSessions, saveSessions,
   getDisponibilites, getPreferences,
   getDevoirs, saveDevoirs,
+  getCours, saveCours,
 } from '../utils/storage'
-import { generatePlanning } from '../utils/scheduler'
+import { generateSessionsForEvent } from '../utils/scheduler'
 import { toast } from 'sonner'
 
 function genId() {
@@ -34,6 +35,7 @@ export default function Import() {
   const [erreurParse, setErreurParse] = useState('')
   const [genererSessions, setGenererSessions] = useState(true)
   const [resultat, setResultat] = useState(null)
+  const [detailOuvert, setDetailOuvert] = useState(false)
 
   useEffect(() => {
     setMatieres(getMatieres())
@@ -42,14 +44,18 @@ export default function Import() {
   function handleFichierCharge(texte, nom) {
     setErreurParse('')
     try {
-      const evts = parseICSFile(texte)
-      if (evts.length === 0) {
+      const rawEvts = parseICSFile(texte)
+      if (rawEvts.length === 0) {
         setErreurParse('Aucun événement trouvé dans ce fichier.')
         return
       }
-      const evtsAssocies = associerMatieres(evts, getMatieres())
-      setEvenements(evtsAssocies)
+      const { evenements: evtsTraites, matieres: touteMatieres, nouvellesMatieres: matCreees } = processEvents(rawEvts, getMatieres())
+      setEvenements(evtsTraites)
+      setMatieres(touteMatieres)
       setNomFichier(nom)
+      if (matCreees.length > 0) {
+        toast.info(`${matCreees.length} matière${matCreees.length > 1 ? 's' : ''} créée${matCreees.length > 1 ? 's' : ''} automatiquement`)
+      }
       setEtape(1)
     } catch (e) {
       setErreurParse('Fichier invalide ou corrompu. Vérifiez que c\'est bien un fichier .ics valide.')
@@ -89,7 +95,6 @@ export default function Import() {
       lieu: e.lieu || '',
       notes: e.description || '',
     }))
-
     const tousExamens = [...examensExistants, ...nouveauxExamens]
     saveExamens(tousExamens)
 
@@ -104,18 +109,65 @@ export default function Import() {
       saveDevoirs([...getDevoirs(), ...nouveauxDevoirs])
     }
 
-    let nbSessions = 0
-    if (genererSessions && nouveauxExamens.length > 0) {
+    const nouveauxCours = extraireCoursDepuisEvenements(inclus)
+    if (nouveauxCours.length > 0) {
+      saveCours([...getCours(), ...nouveauxCours])
+    }
+
+    let nbSessionsRevision = 0
+    let nbSessionsTravail = 0
+    if (genererSessions) {
       const mat = getMatieres()
       const dispo = getDisponibilites()
       const prefs = getPreferences()
       const sessionsExistantes = getSessions().filter((s) => s.terminee)
-      const nouvellesSessions = generatePlanning(mat, tousExamens, dispo, prefs)
-      saveSessions([...sessionsExistantes, ...nouvellesSessions])
-      nbSessions = nouvellesSessions.length
+
+      const occupiedSlots = [
+        ...nouveauxCours.map((c) => ({ debut: c.debut, fin: c.fin })),
+        ...sessionsExistantes.map((s) => ({
+          debut: s.date,
+          fin: new Date(new Date(s.date).getTime() + s.duree * 60 * 1000).toISOString(),
+        })),
+      ]
+
+      const sessionsGenerees = []
+      const evtsAvecDate = inclus.filter((e) => e.type !== 'cours')
+      for (const evt of evtsAvecDate) {
+        const nouvelles = generateSessionsForEvent(evt, mat, occupiedSlots, dispo, prefs)
+        sessionsGenerees.push(...nouvelles)
+        for (const s of nouvelles) {
+          occupiedSlots.push({
+            debut: s.date,
+            fin: new Date(new Date(s.date).getTime() + s.duree * 60 * 1000).toISOString(),
+          })
+        }
+      }
+
+      saveSessions([...sessionsExistantes, ...sessionsGenerees])
+      nbSessionsRevision = sessionsGenerees.filter((s) => s.typeSession === 'revision').length
+      nbSessionsTravail = sessionsGenerees.filter((s) => s.typeSession === 'travail').length
     }
 
-    setResultat({ total: inclus.length, examens: nouveauxExamens.length, devoirs: nouveauxDevoirs.length, sessions: nbSessions })
+    const matieresFinales = getMatieres()
+    const matieresCreees = matieresFinales.filter((m) => m.fromImport)
+    const detailParMatiere = matieresCreees.map((m) => ({
+      nom: m.nom,
+      emoji: m.emoji,
+      examens: nouveauxExamens.filter((e) => e.matiereId === m.id).length,
+      devoirs: nouveauxDevoirs.filter((e) => e.matiereId === m.id).length,
+      cours: nouveauxCours.filter((c) => c.matiereId === m.id).length,
+    }))
+
+    setResultat({
+      total: inclus.length,
+      examens: nouveauxExamens.length,
+      devoirs: nouveauxDevoirs.length,
+      cours: nouveauxCours.length,
+      sessionsRevision: nbSessionsRevision,
+      sessionsTravail: nbSessionsTravail,
+      matieresCreees: matieresCreees.length,
+      detailParMatiere,
+    })
     setChargement(false)
     setEtape(2)
     toast.success(`Import réussi — ${inclus.length} événements traités`)
@@ -354,28 +406,79 @@ export default function Import() {
       )}
 
       {etape === 2 && resultat && (
-        <div style={{ maxWidth: 520 }}>
-          <div className="rf-card p-5 text-center animate-fade-slide">
-            <div style={{ fontSize: 60, marginBottom: 16 }} className="animate-pop">🎉</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-              Import réussi !
-            </h2>
-            <p className="caption mb-5">Votre calendrier a été importé et analysé avec succès.</p>
+        <div style={{ maxWidth: 580 }}>
+          <div className="rf-card p-5 animate-fade-slide">
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 56, marginBottom: 12 }} className="animate-pop">🎉</div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                Import réussi !
+              </h2>
+              <p className="caption">Votre calendrier a été importé et analysé avec succès.</p>
+            </div>
 
-            <div className="row g-3 mb-5">
+            <div className="row g-2 mb-4">
               {[
-                { valeur: resultat.examens, label: 'Examens ajoutés', couleur: 'var(--accent)' },
-                { valeur: resultat.devoirs, label: 'Devoirs ajoutés', couleur: 'var(--warning)' },
-                { valeur: resultat.sessions, label: 'Séances créées', couleur: 'var(--success)' },
+                { valeur: resultat.matieresCreees, label: 'Matières créées', couleur: 'var(--primary)' },
+                { valeur: resultat.examens, label: 'Examens', couleur: 'var(--accent)' },
+                { valeur: resultat.devoirs, label: 'Devoirs', couleur: 'var(--warning)' },
+                { valeur: resultat.cours, label: 'Cours / TD', couleur: '#8B8BA8' },
+                { valeur: resultat.sessionsRevision, label: 'Séances révision', couleur: 'var(--success)' },
+                { valeur: resultat.sessionsTravail, label: 'Séances travail', couleur: '#F4A261' },
               ].map(({ valeur, label, couleur }) => (
                 <div key={label} className="col-4">
-                  <div style={{ padding: '16px 8px', background: 'var(--card-elevated)', borderRadius: 12 }}>
-                    <div style={{ fontSize: 32, fontWeight: 700, color: couleur, lineHeight: 1 }}>{valeur}</div>
-                    <div className="caption mt-1">{label}</div>
+                  <div style={{ padding: '12px 8px', background: 'var(--card-elevated)', borderRadius: 10, textAlign: 'center' }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: couleur, lineHeight: 1 }}>{valeur}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
                   </div>
                 </div>
               ))}
             </div>
+
+            {resultat.detailParMatiere && resultat.detailParMatiere.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <button
+                  onClick={() => setDetailOuvert((v) => !v)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'Inter',
+                    fontSize: 12,
+                    color: 'var(--primary)',
+                    padding: '6px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  {detailOuvert ? '▾' : '▸'} Détail par matière ({resultat.detailParMatiere.length})
+                </button>
+                {detailOuvert && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                    {resultat.detailParMatiere.map((m, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '8px 12px',
+                          background: 'var(--card-elevated)',
+                          borderRadius: 8,
+                          fontSize: 13,
+                        }}
+                      >
+                        <span style={{ fontSize: 18 }}>{m.emoji}</span>
+                        <span style={{ flex: 1, fontWeight: 500, color: 'var(--text-primary)' }}>{m.nom}</span>
+                        {m.examens > 0 && <span style={{ fontSize: 11, color: 'var(--accent)' }}>{m.examens} examen{m.examens > 1 ? 's' : ''}</span>}
+                        {m.devoirs > 0 && <span style={{ fontSize: 11, color: 'var(--warning)' }}>{m.devoirs} devoir{m.devoirs > 1 ? 's' : ''}</span>}
+                        {m.cours > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.cours} cours</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {resultat.examens === 0 && (
               <div
@@ -384,12 +487,12 @@ export default function Import() {
                   background: 'rgba(251,191,36,0.08)',
                   border: '1px solid rgba(251,191,36,0.25)',
                   borderRadius: 8,
-                  marginBottom: 20,
+                  marginBottom: 16,
                   fontSize: 13,
                   color: 'var(--warning)',
                 }}
               >
-                Aucun examen n'a pu être associé à une matière. Allez dans "Mes matières" pour créer vos matières, puis réimportez.
+                Aucun examen associé à une matière. Allez dans "Mes matières" pour créer vos matières, puis réimportez.
               </div>
             )}
 

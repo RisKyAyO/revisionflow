@@ -30,7 +30,11 @@ export default function SessionCard({ session, matiere, onMarquerFaite }) {
       <div
         className="rf-card p-3 animate-fade-slide item-stagger"
         style={{
-          borderLeft: `3px solid ${matiere.couleur}`,
+          borderLeft: `3px solid ${
+            session.typeSession === 'travail' ? '#F4A261'
+            : session.typeSession === 'preparation' ? '#FBBF24'
+            : matiere.couleur
+          }`,
           opacity: session.terminee ? 0.5 : 1,
           transition: 'opacity 0.3s ease',
         }}
@@ -45,15 +49,37 @@ export default function SessionCard({ session, matiere, onMarquerFaite }) {
               >
                 {matiere.nom}
               </div>
-              <div className="d-flex align-items-center gap-2 mt-1">
+              <div className="d-flex align-items-center gap-2 mt-1" style={{ flexWrap: 'wrap' }}>
                 <Clock size={12} style={{ color: 'var(--text-muted)' }} />
                 <span className="caption">{heure}</span>
-                <span
-                  className="rf-badge rf-badge-primary"
-                  style={{ fontSize: 11 }}
-                >
+                <span className="rf-badge rf-badge-primary" style={{ fontSize: 11 }}>
                   {session.duree} min
                 </span>
+                {session.typeSession && session.typeSession !== 'revision' && (
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: 20,
+                    background: session.typeSession === 'travail' ? 'rgba(244,162,97,0.15)' : 'rgba(251,191,36,0.15)',
+                    color: session.typeSession === 'travail' ? '#F4A261' : '#FBBF24',
+                    letterSpacing: '0.3px',
+                  }}>
+                    {session.typeSession === 'travail' ? 'Travail' : 'Préparation'}
+                  </span>
+                )}
+                {session.phase && (
+                  <span style={{
+                    fontSize: 10,
+                    padding: '1px 6px',
+                    borderRadius: 20,
+                    background: 'var(--card-elevated)',
+                    color: 'var(--text-muted)',
+                    fontStyle: 'italic',
+                  }}>
+                    {session.phase}
+                  </span>
+                )}
               </div>
             </div>
           </div>

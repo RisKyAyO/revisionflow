@@ -3,21 +3,26 @@ import { format, startOfWeek, addDays, isSameDay, parseISO, addWeeks, subWeeks }
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, RefreshCw, Zap, Check } from 'lucide-react'
 import { Button } from '../components/ui/button'
-import { getMatieres, getExamens, getSessions, saveSessions, getDisponibilites, getPreferences } from '../utils/storage'
+import { getMatieres, getExamens, getSessions, saveSessions, getDisponibilites, getPreferences, getCours } from '../utils/storage'
 import { generatePlanning } from '../utils/scheduler'
 import { toast } from 'sonner'
 
 const HEURES = Array.from({ length: 15 }, (_, i) => i + 8)
 
+const TYPE_COURS_COULEUR = { CM: '#6C63FF', TD: '#12c2e9', TP: '#43C6AC', autre: '#8B8BA8' }
+
 export default function Planning() {
   const [semaineDebut, setSemaineDebut] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [sessions, setSessions] = useState([])
   const [matieres, setMatieres] = useState([])
+  const [cours, setCours] = useState([])
+  const [afficherCours, setAfficherCours] = useState(true)
   const [generation, setGeneration] = useState(false)
 
   useEffect(() => {
     setMatieres(getMatieres())
     setSessions(getSessions())
+    setCours(getCours())
   }, [])
 
   const joursCol = Array.from({ length: 7 }, (_, i) => addDays(semaineDebut, i))
@@ -25,6 +30,14 @@ export default function Planning() {
   function getSessionsDuJourHeure(jour, heure) {
     return sessions.filter((s) => {
       const d = parseISO(s.date)
+      return isSameDay(d, jour) && d.getHours() === heure
+    })
+  }
+
+  function getCoursDuJourHeure(jour, heure) {
+    if (!afficherCours) return []
+    return cours.filter((c) => {
+      const d = parseISO(c.debut)
       return isSameDay(d, jour) && d.getHours() === heure
     })
   }
@@ -60,6 +73,17 @@ export default function Planning() {
       <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
         <h1 className="page-title">Planning</h1>
         <div className="d-flex align-items-center gap-2 flex-wrap">
+          {cours.length > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={afficherCours}
+                onChange={(e) => setAfficherCours(e.target.checked)}
+                style={{ accentColor: 'var(--primary)', width: 14, height: 14 }}
+              />
+              Afficher les cours
+            </label>
+          )}
           <div className="d-flex align-items-center gap-1">
             <Button variant="secondary" size="sm" onClick={() => setSemaineDebut(subWeeks(semaineDebut, 1))}>
               <ChevronLeft size={14} />
@@ -151,6 +175,7 @@ export default function Planning() {
               </div>
               {joursCol.map((jour, j) => {
                 const sess = getSessionsDuJourHeure(jour, heure)
+                const coursHeure = getCoursDuJourHeure(jour, heure)
                 return (
                   <div
                     key={j}
@@ -162,6 +187,32 @@ export default function Planning() {
                       gap: 3,
                     }}
                   >
+                    {coursHeure.map((c) => {
+                      const mat = getMatiere(c.matiereId)
+                      const typeCouleur = TYPE_COURS_COULEUR[c.type] || TYPE_COURS_COULEUR.autre
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            background: `repeating-linear-gradient(45deg, ${typeCouleur}12, ${typeCouleur}12 3px, transparent 3px, transparent 7px)`,
+                            border: `1px solid ${typeCouleur}40`,
+                            borderLeft: `3px solid ${typeCouleur}`,
+                            borderRadius: 6,
+                            padding: '4px 7px',
+                            fontSize: 11,
+                          }}
+                          title={`${c.titreBrut}${c.salle ? ' — ' + c.salle : ''}`}
+                        >
+                          <div style={{ fontWeight: 600, color: typeCouleur, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, background: `${typeCouleur}25`, letterSpacing: '0.3px' }}>
+                              {c.type}
+                            </span>
+                            {mat ? `${mat.emoji} ${mat.nom}` : c.titre}
+                          </div>
+                          {c.salle && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>📍 {c.salle}</div>}
+                        </div>
+                      )
+                    })}
                     {sess.map((s) => {
                       const mat = getMatiere(s.matiereId)
                       if (!mat) return null
@@ -176,15 +227,17 @@ export default function Planning() {
                             fontSize: 11,
                             opacity: s.terminee ? 0.5 : 1,
                             cursor: 'default',
-                            position: 'relative',
                           }}
-                          title={`${mat.nom} — ${s.duree}min`}
+                          title={`${mat.nom} — ${s.duree}min${s.phase ? ' · ' + s.phase : ''}`}
                         >
                           <div style={{ fontWeight: 600, color: mat.couleur, display: 'flex', alignItems: 'center', gap: 4 }}>
                             {s.terminee && <Check size={10} />}
                             {mat.emoji} {mat.nom}
                           </div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>{s.duree}min</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {s.duree}min
+                            {s.phase && <span style={{ fontStyle: 'italic' }}>{s.phase}</span>}
+                          </div>
                         </div>
                       )
                     })}
@@ -196,7 +249,22 @@ export default function Planning() {
         </div>
       </div>
 
-      {sessions.length === 0 && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, padding: '0 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 12, height: 12, background: 'var(--primary)', borderRadius: 2 }} />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Séances de révision</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            width: 12, height: 12, borderRadius: 2,
+            background: 'repeating-linear-gradient(45deg, #6C63FF30, #6C63FF30 2px, transparent 2px, transparent 5px)',
+            border: '1px solid #6C63FF40',
+          }} />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cours / TD / TP</span>
+        </div>
+      </div>
+
+      {sessions.length === 0 && cours.length === 0 && (
         <div className="rf-card p-5 mt-4 text-center">
           <div className="animate-float" style={{ fontSize: 48, marginBottom: 16 }}>📅</div>
           <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Aucune séance planifiée</h3>

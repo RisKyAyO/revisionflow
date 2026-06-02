@@ -10,7 +10,7 @@ const FILTRES = [
   { id: 'autre', label: 'Autres' },
 ]
 
-const COLONNES = ['', 'Titre / Lieu', 'Type', 'Date', 'Matière associée', 'Catégorie', '']
+const COLONNES = ['', 'Titre / Lieu', 'Type', 'Date', 'Matière associée', 'Catégorie', 'Séances', '']
 
 export default function EventReviewTable({ evenements, matieres, onChange, onNouvelleMat }) {
   const [filtreActif, setFiltreActif] = useState('tous')
@@ -142,7 +142,7 @@ export default function EventReviewTable({ evenements, matieres, onChange, onNou
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '28px 1fr 90px 120px 170px 100px 28px',
+          gridTemplateColumns: '28px 1fr 90px 120px 160px 100px 90px 28px',
           gap: 10,
           padding: '6px 14px 10px',
         }}

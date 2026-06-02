@@ -6,7 +6,7 @@ import StatCard from '../components/StatCard'
 import SessionCard from '../components/SessionCard'
 import EmptyState from '../components/EmptyState'
 import { Progress } from '../components/ui/progress'
-import { getMatieres, getExamens, getSessions, saveSessions, saveMatieres, getDevoirs, saveDevoirs } from '../utils/storage'
+import { getMatieres, getExamens, getSessions, saveSessions, saveMatieres, getDevoirs, saveDevoirs, getCours } from '../utils/storage'
 import { mettreAJourMaistrise } from '../utils/scheduler'
 
 export default function Dashboard() {
@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [examens, setExamens] = useState([])
   const [sessions, setSessions] = useState([])
   const [devoirs, setDevoirs] = useState([])
+  const [cours, setCours] = useState([])
   const [jourSelectionne, setJourSelectionne] = useState(new Date())
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export default function Dashboard() {
     setExamens(getExamens())
     setSessions(getSessions())
     setDevoirs(getDevoirs())
+    setCours(getCours())
   }, [])
 
   const aujourd = new Date()
@@ -75,6 +77,12 @@ export default function Dashboard() {
     .filter((e) => e.jours >= 0)
     .sort((a, b) => a.jours - b.jours)
     .slice(0, 4)
+
+  const coursDaujourdhui = cours
+    .filter((c) => isSameDay(parseISO(c.debut), aujourd))
+    .sort((a, b) => new Date(a.debut) - new Date(b.debut))
+
+  const TYPE_COULEUR = { CM: '#6C63FF', TD: '#12c2e9', TP: '#43C6AC', autre: '#8B8BA8' }
 
   const devoirsProches = devoirs
     .filter((d) => !d.termine)
@@ -176,6 +184,45 @@ export default function Dashboard() {
               })}
             </div>
           </div>
+
+          {coursDaujourdhui.length > 0 && (
+            <div className="rf-card p-4 mb-4">
+              <div className="label-upper mb-3">Cours aujourd'hui</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {coursDaujourdhui.map((c) => {
+                  const mat = matieres.find((m) => m.id === c.matiereId)
+                  const couleur = TYPE_COULEUR[c.type] || TYPE_COULEUR.autre
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
+                        background: `${couleur}10`,
+                        borderLeft: `3px solid ${couleur}`,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: couleur, borderRadius: 4, padding: '2px 6px' }}>
+                        {c.type}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {mat ? `${mat.emoji} ${mat.nom}` : c.titre}
+                        </div>
+                        {c.salle && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>📍 {c.salle}</div>}
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {format(parseISO(c.debut), 'HH:mm')} – {format(parseISO(c.fin), 'HH:mm')}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="rf-card p-4">
             <div className="label-upper mb-3">
