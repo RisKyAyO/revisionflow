@@ -197,7 +197,7 @@ export default function Planning() {
     setGeneration(true)
     await new Promise(r => setTimeout(r, 1500))
     const sessEx = getSessions().filter(s => s.terminee)
-    const nouv   = generatePlanning(getMatieres(), getExamens(), getDisponibilites(), getPreferences())
+    const nouv   = generatePlanning(getMatieres(), getExamens(), getDisponibilites(), getPreferences(), getCours())
     saveSessions([...sessEx, ...nouv])
     setSessions([...sessEx, ...nouv])
     setGeneration(false)

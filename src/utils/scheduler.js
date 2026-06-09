@@ -55,17 +55,53 @@ function prochaineExamen(matiereId, examens) {
   return dateMin
 }
 
-export function generatePlanning(matieres, examens, disponibilites, preferences) {
+// Trouve le premier créneau libre à partir de `debutMin` sur le jour donné,
+// en sautant par-dessus tous les créneaux occupés (cours + séances déjà placées).
+function premierCreneauLibre(jour, debutMin, finMin, dureeMin, pause, occupes) {
+  let s = debutMin
+  while (s + dureeMin <= finMin) {
+    const start = new Date(jour)
+    start.setHours(Math.floor(s / 60), s % 60, 0, 0)
+    const end = new Date(start.getTime() + dureeMin * 60 * 1000)
+
+    if (!hasCollision(start, end, occupes)) {
+      return { start, end, slotMin: s }
+    }
+
+    // Trouver le créneau occupé qui bloque et sauter à sa fin + pause
+    let sautMin = s + 5
+    for (const occ of occupes) {
+      const oStart = new Date(occ.debut)
+      const oEnd   = new Date(occ.fin)
+      // Ce créneau bloque-t-il notre slot ?
+      if (!(end <= oStart || start >= oEnd)) {
+        const oEndMin = oEnd.getHours() * 60 + oEnd.getMinutes()
+        sautMin = Math.max(sautMin, oEndMin + pause)
+      }
+    }
+    s = sautMin
+  }
+  return null
+}
+
+export function generatePlanning(matieres, examens, disponibilites, preferences, cours = []) {
   const sessions = []
   const maintenant = new Date()
   const fin = addDays(maintenant, 14)
 
   if (matieres.length === 0) return sessions
 
-  const matieresAvecExamen = matieres.filter((m) => {
-    return examens.some((e) => e.matiereId === m.id)
-  })
+  // Créneaux bloqués par les cours existants (ignorés exclus)
+  const coursOccupes = cours
+    .filter(c => c.categorie !== 'ignore')
+    .map(c => ({ debut: c.debut, fin: c.fin }))
 
+  // Séances déjà placées dans ce même appel (pour ne pas se chevaucher entre elles)
+  const sessionsOccupees = []
+
+  const matieresAvecExamen = matieres.filter((m) =>
+    examens.some((e) => e.matiereId === m.id)
+  )
   const matieresATraiter = matieresAvecExamen.length > 0 ? matieresAvecExamen : matieres
 
   const urgences = matieresATraiter.map((m) => ({
@@ -75,60 +111,56 @@ export function generatePlanning(matieres, examens, disponibilites, preferences)
 
   let jour = startOfDay(maintenant)
   const jourParMatiere = {}
-  matieresATraiter.forEach((m) => {
-    jourParMatiere[m.id] = startOfDay(maintenant)
-  })
+  matieresATraiter.forEach((m) => { jourParMatiere[m.id] = startOfDay(maintenant) })
 
   while (isBefore(jour, fin)) {
     const indexJour = getDay(jour)
     const nomJour = JOURS_SEMAINE[indexJour]
     const dispo = disponibilites[nomJour]
 
-    if (!dispo || !dispo.actif) {
-      jour = addDays(jour, 1)
-      continue
-    }
+    if (!dispo || !dispo.actif) { jour = addDays(jour, 1); continue }
 
     const debutMin = heureVersMinutes(dispo.debut)
-    const finMin = heureVersMinutes(dispo.fin)
-    const duree = preferences.dureeSceance || 45
-    const pause = preferences.pauseEntre || 10
+    const finMin   = heureVersMinutes(dispo.fin)
+    const duree    = preferences.dureeSceance || 45
+    const pause    = preferences.pauseEntre   || 10
     const maxParJour = preferences.maxSceancesParJour || 4
+
+    // Tous les créneaux bloqués ce jour-là
+    const tousOccupes = [...coursOccupes, ...sessionsOccupees]
 
     let slotActuel = debutMin
     let sessionsAujourdHui = 0
     let derniereMatiereId = null
 
     const matieresDisponibles = urgences
-      .filter((u) => {
-        const prochainJour = jourParMatiere[u.matiere.id]
-        return !isAfter(prochainJour, jour)
-      })
+      .filter(u => !isAfter(jourParMatiere[u.matiere.id], jour))
       .sort((a, b) => b.urgence - a.urgence)
 
     for (let i = 0; i < matieresDisponibles.length && sessionsAujourdHui < maxParJour; i++) {
       const { matiere } = matieresDisponibles[i]
-
       if (matiere.id === derniereMatiereId && matieresDisponibles.length > 1) continue
 
-      if (slotActuel + duree > finMin) break
-
-      const dateSession = new Date(jour)
-      dateSession.setHours(Math.floor(slotActuel / 60), slotActuel % 60, 0, 0)
+      // Chercher le premier créneau libre à partir de slotActuel
+      const creneau = premierCreneauLibre(jour, slotActuel, finMin, duree, pause, tousOccupes)
+      if (!creneau) break // plus de place aujourd'hui
 
       sessions.push({
         id: genId(),
         matiereId: matiere.id,
-        date: dateSession.toISOString(),
-        duree: duree,
+        date: creneau.start.toISOString(),
+        duree,
         terminee: false,
         note: 0,
       })
 
+      // Marquer ce créneau comme occupé pour les prochaines séances du même appel
+      sessionsOccupees.push({ debut: creneau.start.toISOString(), fin: creneau.end.toISOString() })
+
       const intervalle = INTERVALLES_MAITRISE[Math.round(matiere.maitrise)] || 3
       jourParMatiere[matiere.id] = addDays(jour, intervalle)
       derniereMatiereId = matiere.id
-      slotActuel += duree + pause
+      slotActuel = creneau.slotMin + duree + pause
       sessionsAujourdHui++
     }
 

@@ -133,7 +133,11 @@ export default function Import() {
       const sessionsExistantes = getSessions().filter((s) => s.terminee)
 
       const occupiedSlots = [
+        // Tous les cours déjà en mémoire (sync + imports précédents)
+        ...getCours().filter(c => c.categorie !== 'ignore').map((c) => ({ debut: c.debut, fin: c.fin })),
+        // Les nouveaux cours de cet import
         ...nouveauxCours.map((c) => ({ debut: c.debut, fin: c.fin })),
+        // Les séances déjà terminées
         ...sessionsExistantes.map((s) => ({
           debut: s.date,
           fin: new Date(new Date(s.date).getTime() + s.duree * 60 * 1000).toISOString(),
