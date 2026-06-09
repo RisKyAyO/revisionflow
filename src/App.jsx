@@ -8,9 +8,11 @@ import Dashboard from './pages/Dashboard'
 import Planning from './pages/Planning'
 import Import from './pages/Import'
 import Matieres from './pages/Matieres'
+import Devoirs from './pages/Devoirs'
 import Statistiques from './pages/Statistiques'
 import Parametres from './pages/Parametres'
-import { initialiserDemoData, getSessions, getCours } from './utils/storage'
+import { initialiserDemoData, getSessions, getCours, getSyncConfig, saveSyncConfig } from './utils/storage'
+import { syncCalendarFromUrl } from './utils/syncCalendar'
 import { startOfWeek, addDays, isSameDay, parseISO } from 'date-fns'
 import './styles/global.css'
 import './styles/animations.css'
@@ -53,6 +55,7 @@ function Layout() {
           <Route path="/planning" element={<Planning />} />
           <Route path="/import" element={<Import />} />
           <Route path="/matieres" element={<Matieres />} />
+          <Route path="/devoirs" element={<Devoirs />} />
           <Route path="/statistiques" element={<Statistiques />} />
           <Route path="/parametres" element={<Parametres />} />
         </Routes>
@@ -67,6 +70,17 @@ function Layout() {
 export default function App() {
   useEffect(() => {
     initialiserDemoData()
+
+    // Auto-sync au démarrage si un lien de synchronisation est configuré
+    const cfg = getSyncConfig()
+    if (cfg?.url) {
+      syncCalendarFromUrl(cfg.url)
+        .then((nb) => {
+          saveSyncConfig({ ...cfg, lastSync: new Date().toISOString() })
+          if (nb > 0) console.info(`[RevisionFlow] Emploi du temps synchronisé — ${nb} créneaux`)
+        })
+        .catch((e) => console.warn('[RevisionFlow] Sync échouée :', e.message))
+    }
   }, [])
 
   return (

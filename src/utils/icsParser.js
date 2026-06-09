@@ -171,7 +171,8 @@ export function processEvents(rawEvents, existingSubjects) {
     let matiereId = null
     if (match) {
       matiereId = match.id
-    } else if (nomExtrait && nomExtrait.length >= 2) {
+    } else if (evt.type !== 'cours' && nomExtrait && nomExtrait.length >= 2) {
+      // Les cours n'ont pas besoin de créer une matière — ils vont directement dans le calendrier
       const newMat = {
         id: genId(),
         nom: nomExtrait,

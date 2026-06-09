@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, FileCheck, AlertCircle, RefreshCw } from 'lucide-react'
+import { ArrowRight, FileCheck, AlertCircle, RefreshCw, Link2, CheckCircle2, Clock } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import ImportDropzone from '../components/ImportDropzone'
 import EventReviewTable from '../components/EventReviewTable'
@@ -11,9 +11,13 @@ import {
   getDisponibilites, getPreferences,
   getDevoirs, saveDevoirs,
   getCours, saveCours,
+  getSyncConfig, saveSyncConfig,
 } from '../utils/storage'
 import { generateSessionsForEvent } from '../utils/scheduler'
+import { syncCalendarFromUrl } from '../utils/syncCalendar'
 import { toast } from 'sonner'
+import { formatDistanceToNow } from 'date-fns'
+import { fr } from 'date-fns/locale'
 
 function genId() {
   return Math.random().toString(36).substr(2, 9) + Date.now().toString(36)
@@ -36,9 +40,15 @@ export default function Import() {
   const [genererSessions, setGenererSessions] = useState(true)
   const [resultat, setResultat] = useState(null)
   const [detailOuvert, setDetailOuvert] = useState(false)
+  const [syncUrl, setSyncUrl] = useState('')
+  const [syncEnCours, setSyncEnCours] = useState(false)
+  const [syncConfig, setSyncConfig] = useState({ url: '', lastSync: null })
 
   useEffect(() => {
     setMatieres(getMatieres())
+    const cfg = getSyncConfig()
+    setSyncConfig(cfg)
+    setSyncUrl(cfg.url || '')
   }, [])
 
   function handleFichierCharge(texte, nom) {
@@ -173,6 +183,23 @@ export default function Import() {
     toast.success(`Import réussi — ${inclus.length} événements traités`)
   }
 
+  async function handleSync() {
+    const url = syncUrl.trim()
+    if (!url) return
+    setSyncEnCours(true)
+    try {
+      const nb = await syncCalendarFromUrl(url)
+      const newConfig = { url, lastSync: new Date().toISOString() }
+      saveSyncConfig(newConfig)
+      setSyncConfig(newConfig)
+      toast.success(`Emploi du temps synchronisé — ${nb} créneaux mis à jour`)
+    } catch (e) {
+      toast.error(e.message || 'Erreur lors de la synchronisation')
+    } finally {
+      setSyncEnCours(false)
+    }
+  }
+
   function recommencer() {
     setEtape(0)
     setEvenements([])
@@ -241,6 +268,79 @@ export default function Import() {
 
       {etape === 0 && (
         <div style={{ maxWidth: 660 }}>
+
+          {/* ── Synchronisation automatique ── */}
+          <div
+            className="rf-card p-4 mb-4"
+            style={{ borderLeft: syncConfig.url ? '3px solid var(--primary)' : '3px solid var(--border)' }}
+          >
+            <div className="d-flex align-items-center justify-content-between mb-1 flex-wrap gap-2">
+              <div className="d-flex align-items-center gap-2">
+                <Link2 size={15} style={{ color: 'var(--primary)' }} />
+                <span className="label-upper" style={{ color: 'var(--primary)' }}>Synchronisation automatique</span>
+              </div>
+              {syncConfig.lastSync && (
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  <Clock size={10} />
+                  Synchro il y a {formatDistanceToNow(new Date(syncConfig.lastSync), { locale: fr })}
+                </span>
+              )}
+            </div>
+            <p className="caption mb-3" style={{ fontSize: 12 }}>
+              Collez le lien ICS de votre emploi du temps Hyperplanning. RevisionFlow mettra à jour votre calendrier dès que vous cliquez sur "Synchroniser".
+            </p>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                type="url"
+                value={syncUrl}
+                onChange={(e) => setSyncUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSync()}
+                placeholder="https://hyperplanning.isep.fr/...  ou  webcal://..."
+                className="rf-input"
+                style={{ flex: 1, minWidth: 220, fontSize: 12 }}
+              />
+              <Button
+                variant="default"
+                onClick={handleSync}
+                disabled={!syncUrl.trim() || syncEnCours}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {syncEnCours ? (
+                  <><RefreshCw size={13} className="spin" /> Synchronisation…</>
+                ) : syncConfig.url ? (
+                  <><RefreshCw size={13} /> Resynchroniser</>
+                ) : (
+                  <>Synchroniser</>
+                )}
+              </Button>
+            </div>
+
+            {syncConfig.url && syncConfig.url === syncUrl.trim() && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: 'var(--success)',
+                }}
+              >
+                <CheckCircle2 size={12} />
+                Lien configuré — relancez l'application ou cliquez sur "Resynchroniser" pour mettre à jour
+              </div>
+            )}
+          </div>
+
           <div className="rf-card p-4 mb-4">
             <div className="label-upper mb-3">Comment exporter depuis votre outil</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

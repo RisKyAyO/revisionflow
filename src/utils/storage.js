@@ -103,6 +103,16 @@ export function savePreferences(prefs) {
   sauvegarder(CLE_PREFERENCES, prefs)
 }
 
+const CLE_SYNC = 'rf_sync'
+
+export function getSyncConfig() {
+  return lire(CLE_SYNC) || { url: '', lastSync: null }
+}
+
+export function saveSyncConfig(config) {
+  sauvegarder(CLE_SYNC, config)
+}
+
 export function reinitialiserDonnees() {
   localStorage.removeItem(CLE_MATIERES)
   localStorage.removeItem(CLE_EXAMENS)

@@ -1,12 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Calendar, Upload, BookOpen, BarChart3, Settings } from 'lucide-react'
+import { LayoutDashboard, Calendar, Upload, BookOpen, ClipboardList, Settings } from 'lucide-react'
 
 const ITEMS = [
   { icon: <LayoutDashboard size={20} />, chemin: '/dashboard' },
   { icon: <Calendar size={20} />, chemin: '/planning' },
   { icon: <Upload size={20} />, chemin: '/import' },
   { icon: <BookOpen size={20} />, chemin: '/matieres' },
-  { icon: <BarChart3 size={20} />, chemin: '/statistiques' },
+  { icon: <ClipboardList size={20} />, chemin: '/devoirs' },
   { icon: <Settings size={20} />, chemin: '/parametres' },
 ]
 
