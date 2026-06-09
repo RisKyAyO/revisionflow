@@ -1,5 +1,5 @@
 import { parseICSFile, extractSubjectName, detecterTypeCours } from './icsParser'
-import { getMatieres, getCours, saveCours } from './storage'
+import { getMatieres, getCours, saveCours, getMappingCours } from './storage'
 
 function genId() {
   return Math.random().toString(36).substr(2, 9) + Date.now().toString(36)
@@ -75,22 +75,30 @@ export async function syncCalendarFromUrl(url) {
   const texte = await fetchICS(url)
   const rawEvents = parseICSFile(texte)
   const matieres = getMatieres()
+  const mapping  = getMappingCours()   // associations manuelles sauvegardées
 
   const nouveauxCours = rawEvents.map((e) => {
-    const titreBrut = e.titreBrut || e.titre
+    const titreBrut  = e.titreBrut || e.titre
     const nomExtrait = extractSubjectName(titreBrut)
     const normExtrait = normaliser(nomExtrait)
 
-    const match = matieres.find((m) => {
-      const normNom = normaliser(m.nom)
-      return normNom === normExtrait || normNom.includes(normExtrait) || normExtrait.includes(normNom)
-    })
+    // 1. Association manuelle sauvegardée (priorité absolue)
+    let matiereId = mapping[normExtrait] || mapping[normaliser(titreBrut)] || null
+
+    // 2. Correspondance automatique par nom
+    if (!matiereId) {
+      const match = matieres.find((m) => {
+        const normNom = normaliser(m.nom)
+        return normNom === normExtrait || normNom.includes(normExtrait) || normExtrait.includes(normNom)
+      })
+      if (match) matiereId = match.id
+    }
 
     return {
       id: genId(),
       titre: nomExtrait,
       titreBrut,
-      matiereId: match ? match.id : null,
+      matiereId,
       type: detecterTypeCours(titreBrut),
       debut: e.debut,
       fin: e.fin,

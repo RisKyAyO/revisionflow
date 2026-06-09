@@ -1,40 +1,90 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Save, Download, AlertTriangle } from 'lucide-react'
 import { Button } from '../components/ui/button'
-import { Switch } from '../components/ui/switch'
-import { Slider } from '../components/ui/slider'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '../components/ui/dialog'
 import { getDisponibilites, saveDisponibilites, getPreferences, savePreferences, reinitialiserDonnees, exporterDonnees } from '../utils/storage'
 import { toast } from 'sonner'
 
+// ─── Toggle personnalisé (remplace Radix Switch) ──────────────────────────────
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 38, height: 22,
+        borderRadius: 11,
+        background: checked ? 'var(--primary)' : 'var(--border)',
+        border: 'none',
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'background 0.2s ease',
+        flexShrink: 0,
+        outline: 'none',
+      }}
+    >
+      <span style={{
+        position: 'absolute',
+        top: 3,
+        left: checked ? 19 : 3,
+        width: 16, height: 16,
+        borderRadius: '50%',
+        background: '#fff',
+        transition: 'left 0.2s ease',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+        display: 'block',
+      }} />
+    </button>
+  )
+}
+
+// ─── Slider personnalisé (remplace Radix Slider) ──────────────────────────────
+function Slider({ min, max, step, value, onChange, label }) {
+  return (
+    <div style={{ width: '100%' }}>
+      <input
+        type="range"
+        min={min} max={max} step={step}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{
+          width: '100%',
+          height: 6,
+          borderRadius: 3,
+          accentColor: 'var(--primary)',
+          cursor: 'pointer',
+          outline: 'none',
+        }}
+      />
+    </div>
+  )
+}
+
 const JOURS_CONFIG = [
-  { cle: 'lundi', label: 'Lundi' },
-  { cle: 'mardi', label: 'Mardi' },
+  { cle: 'lundi',    label: 'Lundi' },
+  { cle: 'mardi',    label: 'Mardi' },
   { cle: 'mercredi', label: 'Mercredi' },
-  { cle: 'jeudi', label: 'Jeudi' },
+  { cle: 'jeudi',    label: 'Jeudi' },
   { cle: 'vendredi', label: 'Vendredi' },
-  { cle: 'samedi', label: 'Samedi' },
+  { cle: 'samedi',   label: 'Samedi' },
   { cle: 'dimanche', label: 'Dimanche' },
 ]
 
 const METHODES = [
-  { valeur: 'espacee', label: 'Répétition espacée' },
+  { valeur: 'espacee',  label: 'Répétition espacée' },
   { valeur: 'intensive', label: 'Révision intensive' },
-  { valeur: 'mixte', label: 'Mixte' },
+  { valeur: 'mixte',    label: 'Mixte' },
 ]
 
 export default function Parametres() {
-  const [dispo, setDispo] = useState(getDisponibilites())
-  const [prefs, setPrefs] = useState(getPreferences())
+  const [dispo, setDispo]           = useState(getDisponibilites())
+  const [prefs, setPrefs]           = useState(getPreferences())
   const [confirmReset, setConfirmReset] = useState(false)
 
   function updateDispo(jour, champ, valeur) {
-    setDispo((prev) => ({
-      ...prev,
-      [jour]: { ...prev[jour], [champ]: valeur },
-    }))
+    setDispo(prev => ({ ...prev, [jour]: { ...prev[jour], [champ]: valeur } }))
   }
 
   function sauvegarder() {
@@ -61,69 +111,78 @@ export default function Parametres() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 680 }}>
+
+        {/* ── Disponibilités ── */}
         <div className="rf-card p-4">
           <div className="section-title mb-1">Disponibilités</div>
           <p className="caption mb-4">Définissez vos créneaux disponibles pour les révisions</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {JOURS_CONFIG.map(({ cle, label }) => (
-              <div
-                key={cle}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  padding: '12px 16px',
-                  background: 'var(--card-elevated)',
-                  borderRadius: 10,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <Switch
-                  checked={dispo[cle]?.actif || false}
-                  onCheckedChange={(v) => updateDispo(cle, 'actif', v)}
-                />
-                <span style={{ width: 90, fontSize: 14, fontWeight: dispo[cle]?.actif ? 600 : 400, color: dispo[cle]?.actif ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                  {label}
-                </span>
-                {dispo[cle]?.actif && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      type="time"
-                      value={dispo[cle]?.debut || '09:00'}
-                      onChange={(e) => updateDispo(cle, 'debut', e.target.value)}
-                      className="rf-input"
-                      style={{ width: 100, colorScheme: 'dark' }}
-                    />
-                    <span className="caption">→</span>
-                    <input
-                      type="time"
-                      value={dispo[cle]?.fin || '18:00'}
-                      onChange={(e) => updateDispo(cle, 'fin', e.target.value)}
-                      className="rf-input"
-                      style={{ width: 100, colorScheme: 'dark' }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {JOURS_CONFIG.map(({ cle, label }) => {
+              const actif = dispo[cle]?.actif || false
+              return (
+                <div
+                  key={cle}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '12px 14px',
+                    background: 'var(--card-elevated)',
+                    borderRadius: 10,
+                    flexWrap: 'wrap',
+                    opacity: actif ? 1 : 0.6,
+                    transition: 'opacity 0.2s',
+                  }}
+                >
+                  <Toggle checked={actif} onChange={v => updateDispo(cle, 'actif', v)} />
+                  <span style={{
+                    width: 88, fontSize: 14,
+                    fontWeight: actif ? 600 : 400,
+                    color: actif ? 'var(--text-primary)' : 'var(--text-muted)',
+                    flexShrink: 0,
+                  }}>
+                    {label}
+                  </span>
+                  {actif && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="time"
+                        value={dispo[cle]?.debut || '09:00'}
+                        onChange={e => updateDispo(cle, 'debut', e.target.value)}
+                        className="rf-input"
+                        style={{ width: 100, colorScheme: 'dark' }}
+                      />
+                      <span className="caption">→</span>
+                      <input
+                        type="time"
+                        value={dispo[cle]?.fin || '18:00'}
+                        onChange={e => updateDispo(cle, 'fin', e.target.value)}
+                        className="rf-input"
+                        style={{ width: 100, colorScheme: 'dark' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
+        {/* ── Préférences de séance ── */}
         <div className="rf-card p-4">
           <div className="section-title mb-1">Préférences de séance</div>
           <p className="caption mb-4">Configurez la durée et la fréquence de vos révisions</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+
             <div>
               <div className="d-flex justify-content-between mb-2">
                 <label className="label-upper">Durée d'une séance</label>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>{prefs.dureeSceance} min</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
+                  {prefs.dureeSceance} min
+                </span>
               </div>
               <Slider
-                min={25}
-                max={90}
-                step={5}
-                value={[prefs.dureeSceance]}
-                onValueChange={(v) => setPrefs((p) => ({ ...p, dureeSceance: v[0] }))}
+                min={25} max={90} step={5}
+                value={prefs.dureeSceance}
+                onChange={v => setPrefs(p => ({ ...p, dureeSceance: v }))}
               />
               <div className="d-flex justify-content-between mt-1">
                 <span className="caption">25 min</span>
@@ -134,14 +193,14 @@ export default function Parametres() {
             <div>
               <div className="d-flex justify-content-between mb-2">
                 <label className="label-upper">Pause entre les séances</label>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>{prefs.pauseEntre} min</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
+                  {prefs.pauseEntre} min
+                </span>
               </div>
               <Slider
-                min={5}
-                max={30}
-                step={5}
-                value={[prefs.pauseEntre]}
-                onValueChange={(v) => setPrefs((p) => ({ ...p, pauseEntre: v[0] }))}
+                min={5} max={30} step={5}
+                value={prefs.pauseEntre}
+                onChange={v => setPrefs(p => ({ ...p, pauseEntre: v }))}
               />
               <div className="d-flex justify-content-between mt-1">
                 <span className="caption">5 min</span>
@@ -152,14 +211,14 @@ export default function Parametres() {
             <div>
               <div className="d-flex justify-content-between mb-2">
                 <label className="label-upper">Séances max par jour</label>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--primary)' }}>{prefs.maxSceancesParJour}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
+                  {prefs.maxSceancesParJour}
+                </span>
               </div>
               <Slider
-                min={1}
-                max={6}
-                step={1}
-                value={[prefs.maxSceancesParJour]}
-                onValueChange={(v) => setPrefs((p) => ({ ...p, maxSceancesParJour: v[0] }))}
+                min={1} max={6} step={1}
+                value={prefs.maxSceancesParJour}
+                onChange={v => setPrefs(p => ({ ...p, maxSceancesParJour: v }))}
               />
               <div className="d-flex justify-content-between mt-1">
                 <span className="caption">1</span>
@@ -170,18 +229,16 @@ export default function Parametres() {
             <div>
               <label className="label-upper d-block mb-2">Méthode de révision</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {METHODES.map((m) => (
+                {METHODES.map(m => (
                   <button
                     key={m.valeur}
-                    onClick={() => setPrefs((p) => ({ ...p, methode: m.valeur }))}
+                    onClick={() => setPrefs(p => ({ ...p, methode: m.valeur }))}
                     style={{
-                      padding: '8px 16px',
-                      borderRadius: 8,
+                      padding: '8px 16px', borderRadius: 8,
                       border: `2px solid ${prefs.methode === m.valeur ? 'var(--primary)' : 'var(--border)'}`,
                       background: prefs.methode === m.valeur ? 'var(--primary-glow)' : 'var(--card-elevated)',
                       color: prefs.methode === m.valeur ? 'var(--primary)' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontSize: 13,
+                      cursor: 'pointer', fontSize: 13,
                       fontWeight: prefs.methode === m.valeur ? 600 : 400,
                       fontFamily: 'Inter',
                       transition: 'all 0.15s ease',
@@ -192,9 +249,11 @@ export default function Parametres() {
                 ))}
               </div>
             </div>
+
           </div>
         </div>
 
+        {/* ── Données ── */}
         <div className="rf-card p-4">
           <div className="section-title mb-1">Données</div>
           <p className="caption mb-4">Gérez vos données personnelles</p>
@@ -209,6 +268,7 @@ export default function Parametres() {
             </Button>
           </div>
         </div>
+
       </div>
 
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>

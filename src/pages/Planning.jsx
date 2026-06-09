@@ -3,9 +3,16 @@ import { format, startOfWeek, addDays, isSameDay, parseISO, addWeeks, subWeeks }
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, RefreshCw, Zap, Check } from 'lucide-react'
 import { Button } from '../components/ui/button'
-import { getMatieres, getExamens, getSessions, saveSessions, getDisponibilites, getPreferences, getCours } from '../utils/storage'
+import { getMatieres, saveMatieres, getExamens, getSessions, saveSessions, getDisponibilites, getPreferences, getCours, saveCours, getMappingCours, saveMappingCours } from '../utils/storage'
 import { generatePlanning } from '../utils/scheduler'
 import { toast } from 'sonner'
+
+function genId() {
+  return Math.random().toString(36).substr(2, 9) + Date.now().toString(36)
+}
+function normaliser(str) {
+  return str.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
 
 // ─── Constantes de mise en page ───────────────────────────────────────────────
 const HEURE_DEBUT = 7
@@ -39,12 +46,66 @@ export default function Planning() {
   const [cours, setCours]         = useState([])
   const [afficherCours, setAfficherCours] = useState(true)
   const [generation, setGeneration]       = useState(false)
+  const [panneauAssoc, setPanneauAssoc]   = useState(false)
+  const [assocTemp, setAssocTemp]         = useState({}) // { titre: matiereId }
 
   useEffect(() => {
     setMatieres(getMatieres())
     setSessions(getSessions())
     setCours(getCours())
   }, [])
+
+  // Cours uniques sans matière associée
+  const coursNonAssocies = (() => {
+    const seen = new Set()
+    return cours.filter(c => {
+      if (c.matiereId || seen.has(c.titre)) return false
+      seen.add(c.titre)
+      return true
+    })
+  })()
+
+  function appliquerAssociations() {
+    const mapping = getMappingCours()
+    const newMapping = { ...mapping }
+    const matieresAjour = [...matieres]
+    let nbAjoutees = 0
+
+    // Pour chaque association temp, créer la matière si besoin
+    const newCours = cours.map(c => {
+      const matiereIdChoisi = assocTemp[c.titre]
+      if (!matiereIdChoisi) return c
+      newMapping[normaliser(c.titre)] = matiereIdChoisi
+      return { ...c, matiereId: matiereIdChoisi }
+    })
+
+    saveMappingCours(newMapping)
+    saveCours(newCours)
+    setCours(newCours)
+    setAssocTemp({})
+    setPanneauAssoc(false)
+    toast.success('Associations sauvegardées !')
+  }
+
+  function creerEtAssocier(titreCours) {
+    const palette = ['#6C63FF','#FF6584','#43C6AC','#F7971E','#12c2e9','#f64f59','#c471ed','#667eea','#11998e','#fc5c7d']
+    const nom = titreCours
+    const newMat = {
+      id: genId(),
+      nom,
+      couleur: palette[matieres.length % palette.length],
+      emoji: '📚',
+      maitrise: 2,
+      heuresTotal: 0,
+      dateCreation: new Date().toISOString(),
+      fromImport: true,
+    }
+    const nouvMatieres = [...matieres, newMat]
+    saveMatieres(nouvMatieres)
+    setMatieres(nouvMatieres)
+    setAssocTemp(prev => ({ ...prev, [titreCours]: newMat.id }))
+    toast.success(`Matière "${nom}" créée`)
+  }
 
   const joursCol = Array.from({ length: 7 }, (_, i) => addDays(semaineDebut, i))
 
@@ -123,6 +184,16 @@ export default function Planning() {
               : <><Zap size={14} /> Générer le planning</>
             }
           </Button>
+          {coursNonAssocies.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPanneauAssoc(v => !v)}
+              style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
+            >
+              ⚠ {coursNonAssocies.length} cours sans matière
+            </Button>
+          )}
         </div>
       </div>
 
@@ -336,6 +407,87 @@ export default function Planning() {
           </div>
         </div>
       </div>
+
+      {/* ── Panneau d'association cours → matières ── */}
+      {panneauAssoc && coursNonAssocies.length > 0 && (
+        <div className="rf-card p-4 mt-4" style={{ borderLeft: '3px solid var(--warning)' }}>
+          <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Associer les cours à des matières
+              </div>
+              <p className="caption" style={{ fontSize: 12 }}>
+                Chaque association sera mémorisée pour les prochaines synchronisations
+              </p>
+            </div>
+            <div className="d-flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => { setAssocTemp({}); setPanneauAssoc(false) }}>
+                Annuler
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={appliquerAssociations}
+                disabled={Object.keys(assocTemp).length === 0}
+              >
+                Sauvegarder
+              </Button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {coursNonAssocies.map(c => {
+              const typeCouleur = TYPE_COURS_COULEUR[c.type] || TYPE_COURS_COULEUR.autre
+              const selected = assocTemp[c.titre]
+              return (
+                <div key={c.titre} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                  padding: '10px 12px',
+                  background: 'var(--card-elevated)',
+                  borderRadius: 8,
+                }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                    background: `${typeCouleur}25`, color: typeCouleur, flexShrink: 0,
+                  }}>{c.type}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', minWidth: 120 }}>
+                    {c.titre || c.titreBrut}
+                  </span>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                      value={selected || ''}
+                      onChange={e => setAssocTemp(prev => ({ ...prev, [c.titre]: e.target.value || undefined }))}
+                      className="rf-input"
+                      style={{ fontSize: 12, padding: '4px 8px', minWidth: 160 }}
+                    >
+                      <option value="">— Choisir une matière —</option>
+                      {matieres.map(m => (
+                        <option key={m.id} value={m.id}>{m.emoji} {m.nom}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => creerEtAssocier(c.titre || c.titreBrut)}
+                      style={{
+                        background: 'none', border: '1px solid var(--border)',
+                        borderRadius: 6, padding: '4px 10px',
+                        fontSize: 12, color: 'var(--primary)', cursor: 'pointer',
+                        fontFamily: 'Inter', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      + Créer
+                    </button>
+                  </div>
+                  {selected && (
+                    <span style={{ fontSize: 11, color: 'var(--success)' }}>
+                      ✓ {matieres.find(m => m.id === selected)?.nom}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Légende ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 10, padding: '0 4px', flexWrap: 'wrap' }}>

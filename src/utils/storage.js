@@ -103,6 +103,16 @@ export function savePreferences(prefs) {
   sauvegarder(CLE_PREFERENCES, prefs)
 }
 
+const CLE_MAPPING_COURS = 'rf_mapping_cours'
+
+export function getMappingCours() {
+  return lire(CLE_MAPPING_COURS) || {}
+}
+
+export function saveMappingCours(mapping) {
+  sauvegarder(CLE_MAPPING_COURS, mapping)
+}
+
 const CLE_SYNC = 'rf_sync'
 
 export function getSyncConfig() {
