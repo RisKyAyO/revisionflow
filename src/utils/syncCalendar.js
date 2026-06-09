@@ -9,13 +9,7 @@ function normaliser(str) {
   return str.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
 
-// Proxies CORS utilisés en fallback si le fetch direct échoue
-const CORS_PROXIES = [
-  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-]
-
-async function fetchAvecTimeout(url, timeoutMs = 12000) {
+async function fetchAvecTimeout(url, timeoutMs = 15000) {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -31,40 +25,51 @@ async function fetchAvecTimeout(url, timeoutMs = 12000) {
 async function fetchICS(url) {
   const httpUrl = url.replace(/^webcal:\/\//i, 'https://')
 
-  // Tentative directe
+  // 1. Proxy Vercel côté serveur (pas de CORS, pas de blocage)
+  try {
+    const proxyUrl = `/api/proxy-ics?url=${encodeURIComponent(httpUrl)}`
+    const res = await fetchAvecTimeout(proxyUrl)
+    if (res.ok) {
+      const texte = await res.text()
+      if (texte.includes('BEGIN:VCALENDAR')) return texte
+      // Le proxy a retourné une erreur JSON
+      try {
+        const json = JSON.parse(texte)
+        if (json.error) throw new Error(json.error)
+      } catch (_) {}
+    } else {
+      // Lire le message d'erreur du proxy
+      try {
+        const json = await res.json()
+        if (json.error) throw new Error(json.error)
+      } catch (_) {}
+    }
+  } catch (e) {
+    // Si l'erreur vient du proxy (message métier), on la remonte directement
+    if (e.message && !e.message.includes('fetch') && !e.message.includes('abort')) {
+      throw e
+    }
+    // Sinon (proxy Vercel indisponible en dev local), on continue
+  }
+
+  // 2. Fetch direct (marche si pas de CORS, ex: dev local avec serveur permissif)
   try {
     const res = await fetchAvecTimeout(httpUrl)
     if (res.ok) {
       const texte = await res.text()
       if (texte.includes('BEGIN:VCALENDAR')) return texte
     }
-  } catch (_) {
-    // Probablement une erreur CORS — on essaie les proxies
-  }
-
-  // Tentatives via proxies CORS
-  for (const proxyFn of CORS_PROXIES) {
-    try {
-      const res = await fetchAvecTimeout(proxyFn(httpUrl), 15000)
-      if (res.ok) {
-        const texte = await res.text()
-        if (texte.includes('BEGIN:VCALENDAR')) return texte
-      }
-    } catch (_) {
-      continue
-    }
-  }
+  } catch (_) {}
 
   throw new Error(
-    'Impossible de récupérer le calendrier. Vérifiez le lien, ou que votre emploi du temps est bien public (non protégé par mot de passe).'
+    'Impossible de récupérer le calendrier. Vérifiez que le lien est correct et que votre emploi du temps est bien exportable.'
   )
 }
 
 /**
  * Synchronise les cours depuis une URL ICS (Hyperplanning, etc.).
- * Tous les événements du calendrier sont traités comme des créneaux (cours/TD/TP)
- * puisqu'il s'agit d'un emploi du temps.
- * Les cours précédemment synchronisés depuis une URL sont remplacés.
+ * Tous les événements sont traités comme des créneaux de l'emploi du temps.
+ * Les cours précédemment synchronisés sont remplacés.
  */
 export async function syncCalendarFromUrl(url) {
   const texte = await fetchICS(url)
