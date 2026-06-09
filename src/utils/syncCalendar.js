@@ -77,16 +77,26 @@ export async function syncCalendarFromUrl(url) {
   const matieres = getMatieres()
   const mapping  = getMappingCours()   // associations manuelles sauvegardées
 
+  // Lecture robuste du mapping (compat ancienne structure string)
+  function lireEntree(key) {
+    const val = mapping[key]
+    if (!val) return { matiereId: null, categorie: null }
+    if (typeof val === 'string') return { matiereId: val, categorie: null }
+    return { matiereId: val.matiereId || null, categorie: val.categorie || null }
+  }
+
   const nouveauxCours = rawEvents.map((e) => {
-    const titreBrut  = e.titreBrut || e.titre
-    const nomExtrait = extractSubjectName(titreBrut)
+    const titreBrut   = e.titreBrut || e.titre
+    const nomExtrait  = extractSubjectName(titreBrut)
     const normExtrait = normaliser(nomExtrait)
 
     // 1. Association manuelle sauvegardée (priorité absolue)
-    let matiereId = mapping[normExtrait] || mapping[normaliser(titreBrut)] || null
+    const entree = lireEntree(normExtrait) || lireEntree(normaliser(titreBrut))
+    let matiereId = entree.matiereId
+    let categorie = entree.categorie
 
-    // 2. Correspondance automatique par nom
-    if (!matiereId) {
+    // 2. Correspondance automatique par nom (si pas d'entrée manuelle)
+    if (!matiereId && !categorie) {
       const match = matieres.find((m) => {
         const normNom = normaliser(m.nom)
         return normNom === normExtrait || normNom.includes(normExtrait) || normExtrait.includes(normNom)
@@ -99,6 +109,7 @@ export async function syncCalendarFromUrl(url) {
       titre: nomExtrait,
       titreBrut,
       matiereId,
+      categorie,
       type: detecterTypeCours(titreBrut),
       debut: e.debut,
       fin: e.fin,
